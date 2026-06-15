@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "titulo": "Biblioteca AJE",
   "libros": [
@@ -8,3 +9,12 @@
     }
 ]
 }
+=======
+[
+  {
+    "titulo": "LiquidAJE Manual de Usuario",
+    "archivo": "LiquidAJE-Vertical.pdf",
+    "descripcion": "Manual de Usuario del agente LiquidAJE"
+  }
+]
+>>>>>>> a76fc3610d49810fcf3bc48266904fc3ba54ab23
