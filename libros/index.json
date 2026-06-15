@@ -1,7 +1,10 @@
-[
-  {
-    "titulo": "LiquidAJE Manual de Usuario",
-    "archivo": "LiquidAJE-Vertical",
-    "descripcion": "Manual de Usuario del agente LiquidAJE"
-  }
+{
+  "titulo": "Biblioteca AJE",
+  "libros": [
+    {
+      "titulo": "LiquidAJE Manual de Usuario",
+      "archivo": "LiquidAJE-Vertical.pdf",
+      "descripcion": "Manual de Usuario del agente LiquidAJE"
+    }
 ]
+}
