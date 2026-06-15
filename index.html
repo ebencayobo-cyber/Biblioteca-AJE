@@ -20,13 +20,14 @@
     --line:rgba(46,154,65,.18);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%}
+  html,body{height:100%;height:100dvh}
   body{
     font-family:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
     background:
       radial-gradient(140% 100% at 50% -10%, #f4faf5 0%, #e8f3e9 50%, #d8ebdb 100%);
-    color:var(--ink);min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    color:var(--ink);min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;
     overflow:hidden;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;touch-action:manipulation;
   }
 
   /* ---------- Header ---------- */
@@ -114,7 +115,69 @@
   .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
 
   input[type=file]{display:none}
-  @media (max-width:640px){.slider{display:none}.brand .sub{display:none}.turn .hint{display:none}}
+
+  /* ---------- Overlay: tap para pantalla completa (deep link) ---------- */
+  .fs-prompt{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;
+    background:rgba(21,60,33,.55);backdrop-filter:blur(4px)}
+  .fs-prompt.on{display:flex}
+  .fs-card{background:var(--white);border-radius:18px;padding:30px 28px;text-align:center;max-width:300px;
+    box-shadow:0 20px 60px rgba(21,92,39,.4);animation:pop .25s ease}
+  @keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+  .fs-card .play{width:62px;height:62px;border-radius:50%;background:var(--aje-green);margin:0 auto 16px;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(46,154,65,.4)}
+  .fs-card .play svg{margin-left:3px}
+  .fs-card h3{font-size:18px;color:var(--aje-green-dark);margin-bottom:6px;font-weight:700}
+  .fs-card p{font-size:13px;color:#4a6b52;line-height:1.5;margin-bottom:18px}
+  .fs-card .go{appearance:none;border:none;background:var(--aje-green);color:#fff;font:inherit;font-weight:600;
+    font-size:14px;padding:12px 28px;border-radius:10px;cursor:pointer;width:100%;transition:.15s}
+  .fs-card .go:active{background:var(--aje-green-dark);transform:scale(.97)}
+  .fs-card .skip{margin-top:10px;background:none;border:none;color:#7a9a82;font:inherit;font-size:13px;cursor:pointer;padding:6px}
+
+  /* ---------- Modo inmersivo (funciona en iOS sin Fullscreen API) ---------- */
+  body.immersive{background:#0d1f12}
+  body.immersive header{transform:translateY(-100%);pointer-events:none}
+  body.immersive .controls{opacity:0;pointer-events:none;transform:translateY(20px)}
+  body.immersive.show-ui .controls{opacity:1;pointer-events:auto;transform:none}
+  body.immersive .stage{padding:0}
+  body.immersive .sheet{box-shadow:0 0 0 1px rgba(255,255,255,.06),0 30px 70px rgba(0,0,0,.6)}
+  header{transition:transform .3s ease}
+  .controls{transition:opacity .25s ease, transform .25s ease}
+  /* botón salir del modo inmersivo, visible al mostrar UI */
+  .exit-immersive{position:fixed;top:14px;right:14px;z-index:45;width:42px;height:42px;border-radius:50%;
+    background:rgba(255,255,255,.92);border:none;color:var(--aje-green-dark);font-size:20px;cursor:pointer;
+    display:none;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+  body.immersive.show-ui .exit-immersive{display:flex}
+
+  /* ---------- Móvil ---------- */
+  @media (max-width:760px){
+    .brand .sub{display:none}
+    .brand .name{font-size:15px}
+    .brand img{height:32px}
+    header{padding:12px 16px}
+    .turn .hint{display:none}
+    .turn{width:30%}
+    .stage{padding:0 8px 12px}
+    .controls{gap:10px;padding:12px 10px;width:100%;justify-content:center}
+    .pager{gap:10px;padding:8px 14px}
+    .nav-arrow{font-size:24px;padding:6px 10px}    /* targets táctiles más grandes */
+    .counter{font-size:13px;min-width:auto}
+    .counter input{width:42px}
+    .slider{display:none}
+    .icon-btn{width:46px;height:46px;font-size:19px}
+    /* galería: más aire y tarjetas que llenan el ancho */
+    .intake{width:100%}
+    .hero-logo{height:72px}
+    .welcome h1{font-size:21px}
+    .welcome p{font-size:13px;padding:0 14px}
+    .books{gap:14px;justify-content:center}
+    .book-spine{width:calc(50% - 7px);max-width:150px;height:150px}
+    .shelf h2{justify-content:flex-start}
+  }
+  @media (max-width:380px){
+    .book-spine{width:100%;max-width:none;height:138px;flex-direction:row;align-items:center;padding:14px 18px}
+    .book-spine::before{inset:8px}
+    .book-spine .ttl{-webkit-line-clamp:2}
+  }
 </style>
 </head>
 <body>
@@ -161,7 +224,19 @@
   <input type="range" class="slider" id="slider" min="1" value="1">
   <button class="icon-btn" id="btnFs" title="Pantalla completa">⤢</button>
 </div>
+<button class="exit-immersive" id="exitImmersive" title="Salir">✕</button>
 <div class="toast" id="toast"></div>
+
+<!-- Overlay: un tap para entrar a pantalla completa (deep link) -->
+<div class="fs-prompt" id="fsPrompt">
+  <div class="fs-card">
+    <div class="play"><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+    <h3>Modo lectura</h3>
+    <p>Abre el documento a pantalla completa para una mejor experiencia.</p>
+    <button class="go" id="fsGo">Abrir a pantalla completa</button>
+    <button class="skip" id="fsSkip">Leer así</button>
+  </div>
+</div>
 
 <script src="assets/logo-aje.js"></script>
 <script type="module">
@@ -203,10 +278,16 @@ const pageInput=$('#pageInput'),pageTotal=$('#pageTotal'),slider=$('#slider');
 let toastT;const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600);};
 
 function isFs(){return document.fullscreenElement||document.webkitFullscreenElement;}
+function isImmersive(){return document.body.classList.contains('immersive');}
 function fitSize(pw,ph){
-  const fs=isFs();
-  const availW=Math.min(window.innerWidth-40,fs?1500:1100);
-  const availH=window.innerHeight-(fs?110:190);
+  const big=isFs()||isImmersive();
+  const isMobile=window.innerWidth<=760;
+  const vw=window.innerWidth, vh=window.innerHeight;
+  // márgenes reservados: menos en móvil y en modo grande
+  const marginW = big ? (isMobile?12:60) : (isMobile?16:40);
+  const marginH = big ? (isMobile?20:90) : (isMobile?120:190);
+  const availW=Math.min(vw-marginW, big?1600:1100);
+  const availH=vh-marginH;
   let w=availW,h=w*(ph/pw);
   if(h>availH){h=availH;w=h*(pw/ph);}
   return {w:Math.round(w),h:Math.round(h)};
@@ -496,7 +577,11 @@ async function openFromURL(){
   if(!ref && location.hash) ref=location.hash.replace(/^#/,'');
   if(!ref) return;
   const item=findInCatalog(ref);
-  if(item){ await openBook(item, true); }
+  if(item){
+    await openBook(item, true);
+    // si el lector quedó abierto, ofrecer pantalla completa con un tap
+    if(reader.classList.contains('on')) showFsPrompt();
+  }
   else{ toast('No se encontró "'+ref+'" en el catálogo'); }
 }
 
@@ -521,6 +606,9 @@ async function renderGallery(){
 }
 
 function backToLibrary(){
+  // salir de inmersivo/fullscreen si estaba activo
+  if(isImmersive()||isFs()) exitImmersive();
+  hideFsPrompt();
   reader.classList.remove('on');controls.classList.add('hidden');
   intake.style.display='block';$('#btnLibrary').style.display='none';
   pdfDoc=null;cache.clear();
@@ -531,17 +619,78 @@ function backToLibrary(){
 const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtSize=b=>b<1048576?(b/1024).toFixed(0)+' KB':(b/1048576).toFixed(1)+' MB';
 
-function toggleFs(){
-  const el=document.documentElement,fs=isFs();
-  if(!fs)(el.requestFullscreen||el.webkitRequestFullscreen).call(el);
-  else(document.exitFullscreen||document.webkitExitFullscreen).call(document);
+/* ===== Pantalla completa / Modo inmersivo =====
+   - Escritorio y Android: Fullscreen API real + modo inmersivo CSS.
+   - iOS Safari: no hay Fullscreen API para divs => solo modo inmersivo CSS,
+     que igual oculta header y maximiza el lector. */
+const FS_SUPPORTED = !!(document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen);
+
+function enterImmersive(){
+  document.body.classList.add('immersive');
+  // intentar fullscreen real si está soportado (debe venir de un gesto)
+  if(FS_SUPPORTED && !isFs()){
+    const el=document.documentElement;
+    try{(el.requestFullscreen||el.webkitRequestFullscreen).call(el);}catch(e){}
+  }
+  refreshFsBtn();
+  if(pdfDoc){cache.clear();showPage(current);}
+  // ocultar la UI tras un momento para inmersión total
+  scheduleHideUI();
 }
-function onFsChange(){const fs=isFs();$('#btnFs').textContent=fs?'⤡':'⤢';if(pdfDoc){cache.clear();showPage(current);}}
+function exitImmersive(){
+  document.body.classList.remove('immersive','show-ui');
+  if(FS_SUPPORTED && isFs()){
+    try{(document.exitFullscreen||document.webkitExitFullscreen).call(document);}catch(e){}
+  }
+  refreshFsBtn();
+  if(pdfDoc){cache.clear();showPage(current);}
+}
+function toggleImmersive(){
+  if(isImmersive()) exitImmersive(); else enterImmersive();
+}
+function refreshFsBtn(){
+  const on=isImmersive()||isFs();
+  $('#btnFs').textContent=on?'⤡':'⤢';
+  $('#btnFs').title=on?'Salir de pantalla completa':'Pantalla completa';
+}
+// auto-ocultar controles en modo inmersivo; reaparecen al tocar
+let hideTimer;
+function scheduleHideUI(){
+  clearTimeout(hideTimer);
+  hideTimer=setTimeout(()=>{ if(isImmersive()) document.body.classList.remove('show-ui'); },2600);
+}
+function showUI(){
+  if(!isImmersive()) return;
+  document.body.classList.add('show-ui');
+  scheduleHideUI();
+}
+function onFsChange(){
+  // si el usuario sale del fullscreen del navegador (tecla ESC), sincronizar
+  if(!isFs() && isImmersive() && FS_SUPPORTED){
+    document.body.classList.remove('immersive','show-ui');
+    if(pdfDoc){cache.clear();showPage(current);}
+  }
+  refreshFsBtn();
+}
+
+/* Overlay de "tap para pantalla completa" tras abrir por deep link */
+function showFsPrompt(){
+  $('#fsPrompt').classList.add('on');
+}
+function hideFsPrompt(){
+  $('#fsPrompt').classList.remove('on');
+}
 
 $('#btnLibrary').addEventListener('click',backToLibrary);
-$('#btnFs').addEventListener('click',toggleFs);
+$('#btnFs').addEventListener('click',toggleImmersive);
+$('#exitImmersive').addEventListener('click',exitImmersive);
 document.addEventListener('fullscreenchange',onFsChange);
 document.addEventListener('webkitfullscreenchange',onFsChange);
+
+// Overlay de pantalla completa (deep link)
+$('#fsGo').addEventListener('click',()=>{ hideFsPrompt(); enterImmersive(); });
+$('#fsSkip').addEventListener('click',hideFsPrompt);
+
 $('#next').addEventListener('click',()=>turnPage(1));
 $('#prev').addEventListener('click',()=>turnPage(-1));
 $('#first').addEventListener('click',()=>goTo(1));
@@ -556,11 +705,46 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'){e.preventDefault();turnPage(-1);}
   if(e.key==='Home')goTo(1);
   if(e.key==='End')goTo(total);
-  if(e.key==='f'||e.key==='F')toggleFs();
+  if(e.key==='f'||e.key==='F')toggleImmersive();
+  if(e.key==='Escape'&&isImmersive()&&!FS_SUPPORTED)exitImmersive();
 });
-let tx=0;
-bookwrap.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;},{passive:true});
-bookwrap.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-tx;if(Math.abs(dx)>50)turnPage(dx<0?1:-1);},{passive:true});
+
+/* ---- Manejo táctil mejorado ---- */
+let tStartX=0,tStartY=0,tStartT=0,tMoved=false;
+bookwrap.addEventListener('touchstart',e=>{
+  const t=e.touches[0];
+  tStartX=t.clientX;tStartY=t.clientY;tStartT=Date.now();tMoved=false;
+},{passive:true});
+bookwrap.addEventListener('touchmove',e=>{
+  const t=e.touches[0];
+  if(Math.abs(t.clientX-tStartX)>10||Math.abs(t.clientY-tStartY)>10)tMoved=true;
+},{passive:true});
+bookwrap.addEventListener('touchend',e=>{
+  const t=e.changedTouches[0];
+  const dx=t.clientX-tStartX, dy=t.clientY-tStartY, dt=Date.now()-tStartT;
+  const swipeThreshold=Math.max(50,window.innerWidth*0.12);
+  // swipe horizontal claro (no vertical) => pasar página
+  if(Math.abs(dx)>swipeThreshold && Math.abs(dx)>Math.abs(dy)*1.4){
+    turnPage(dx<0?1:-1);
+    return;
+  }
+  // tap simple (sin desplazamiento) => en inmersivo, alternar UI
+  if(!tMoved && dt<300){
+    if(isImmersive()){
+      if(document.body.classList.contains('show-ui')) document.body.classList.remove('show-ui');
+      else showUI();
+    }
+  }
+},{passive:true});
+
+// en escritorio, mover el mouse muestra la UI en modo inmersivo
+let mouseT;
+document.addEventListener('mousemove',()=>{
+  if(!isImmersive())return;
+  document.body.classList.add('show-ui');
+  clearTimeout(mouseT);mouseT=setTimeout(()=>{ if(isImmersive())document.body.classList.remove('show-ui'); },2600);
+});
+
 let rsT;window.addEventListener('resize',()=>{if(!pdfDoc)return;clearTimeout(rsT);rsT=setTimeout(()=>{cache.clear();showPage(current);},180);});
 loadCatalog();
 </script>
