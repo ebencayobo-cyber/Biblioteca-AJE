@@ -75,6 +75,10 @@
   .reader{display:none;flex:1;width:100%;flex-direction:column;align-items:center;justify-content:center;position:relative}
   .reader.on{display:flex}
   .bookwrap{position:relative;display:flex;align-items:center;justify-content:center;perspective:2000px;perspective-origin:50% 50%}
+  .bookwrap.zooming{transition:none}
+  .bookwrap.zoom-reset{transition:transform .28s cubic-bezier(.2,.7,.3,1)}
+  /* al hacer zoom, desactivar zonas de tap laterales para no pasar página sin querer */
+  .bookwrap.is-zoomed .turn{pointer-events:none}
   .sheet{position:relative;background:var(--paper);border-radius:2px 8px 8px 2px;
     box-shadow:0 1px 0 var(--paper-edge),0 26px 54px var(--shadow),inset 0 0 70px rgba(46,154,65,.04);overflow:hidden}
   .sheet canvas{display:block}
@@ -151,7 +155,7 @@
   /* ---------- Botones flotantes laterales (móvil + inmersivo) ---------- */
   .edge-nav{position:fixed;top:50%;transform:translateY(-50%);z-index:44;
     width:46px;height:46px;border-radius:50%;border:none;
-    background:rgba(255,255,255,.22);color:#fff;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+    background:rgba(255,255,255,.22);color:var(--aje-green-dark);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
     display:none;align-items:center;justify-content:center;font-size:24px;line-height:1;
     box-shadow:0 2px 12px rgba(0,0,0,.3);
     opacity:0;transition:opacity .5s ease;pointer-events:none}
@@ -293,6 +297,23 @@ const dbDel=async id=>{const d=await openDB();return new Promise((res,rej)=>{con
 
 const $=s=>document.querySelector(s);
 let pdfDoc=null,current=1,total=1,animating=false,renderToken=0;
+// ---- estado de zoom (pinch) ----
+let zoom=1, panX=0, panY=0;
+const MIN_ZOOM=1, MAX_ZOOM=4;
+function applyZoom(animate){
+  bookwrap.classList.toggle('zoom-reset', !!animate);
+  bookwrap.classList.toggle('zooming', !animate);
+  bookwrap.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`;
+  bookwrap.classList.toggle('is-zoomed', zoom>1.02);
+}
+function resetZoom(animate){ zoom=1;panX=0;panY=0;applyZoom(animate); }
+function clampPan(){
+  const rect=sheet.getBoundingClientRect();
+  const maxX=(rect.width*(zoom-1))/2/zoom + 40;
+  const maxY=(rect.height*(zoom-1))/2/zoom + 40;
+  panX=Math.max(-maxX,Math.min(maxX,panX));
+  panY=Math.max(-maxY,Math.min(maxY,panY));
+}
 const cache=new Map(),dimCache=new Map(),MAX_CACHE=10;
 const intake=$('#intake'),reader=$('#reader'),controls=$('#controls');
 const sheet=$('#sheet'),pageCanvas=$('#pageCanvas'),bookwrap=$('#bookwrap');
@@ -350,6 +371,7 @@ function paintSheet(canvas,w,h){
 }
 async function showPage(num){
   const token=++renderToken;
+  resetZoom(false);
   const {pw,ph}=await pageDims(num);const {w,h}=fitSize(pw,ph);
   const canvas=await getCanvas(num,w,h);
   if(token!==renderToken)return;
@@ -377,6 +399,7 @@ async function turnPage(dir){
   if(animating)return;
   const target=current+dir;
   if(target<1||target>total)return;
+  if(zoom>1.02) resetZoom(true);   // si estaba con zoom, volver a 1x antes de pasar
   animating=true;
 
   const reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -744,33 +767,103 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&isImmersive()&&!FS_SUPPORTED)exitImmersive();
 });
 
-/* ---- Manejo táctil mejorado ---- */
+/* ---- Manejo táctil: pinch-zoom + pan + swipe + doble-tap ---- */
+let pinchStartDist=0, pinchStartZoom=1;
+let panStartX=0, panStartY=0, panOrigX=0, panOrigY=0;
 let tStartX=0,tStartY=0,tStartT=0,tMoved=false;
+let lastTapT=0;
+let gesture=null;  // 'pinch' | 'pan' | 'swipe' | null
+
+function dist(t1,t2){const dx=t1.clientX-t2.clientX,dy=t1.clientY-t2.clientY;return Math.hypot(dx,dy);}
+
 bookwrap.addEventListener('touchstart',e=>{
-  const t=e.touches[0];
-  tStartX=t.clientX;tStartY=t.clientY;tStartT=Date.now();tMoved=false;
-},{passive:true});
+  if(e.touches.length===2){
+    // inicio de pinch
+    gesture='pinch';
+    pinchStartDist=dist(e.touches[0],e.touches[1]);
+    pinchStartZoom=zoom;
+    bookwrap.classList.add('zooming');
+    e.preventDefault();
+  }else if(e.touches.length===1){
+    const t=e.touches[0];
+    tStartX=t.clientX;tStartY=t.clientY;tStartT=Date.now();tMoved=false;
+    if(zoom>1.02){
+      // con zoom: 1 dedo = paneo
+      gesture='pan';
+      panStartX=t.clientX;panStartY=t.clientY;panOrigX=panX;panOrigY=panY;
+    }else{
+      gesture='swipe';
+    }
+  }
+},{passive:false});
+
 bookwrap.addEventListener('touchmove',e=>{
-  const t=e.touches[0];
-  if(Math.abs(t.clientX-tStartX)>10||Math.abs(t.clientY-tStartY)>10)tMoved=true;
-},{passive:true});
+  if(gesture==='pinch' && e.touches.length===2){
+    e.preventDefault();
+    const d=dist(e.touches[0],e.touches[1]);
+    let nz=pinchStartZoom*(d/pinchStartDist);
+    zoom=Math.max(MIN_ZOOM,Math.min(MAX_ZOOM,nz));
+    clampPan();
+    applyZoom(false);
+  }else if(gesture==='pan' && e.touches.length===1){
+    e.preventDefault();
+    const t=e.touches[0];
+    panX=panOrigX+(t.clientX-panStartX);
+    panY=panOrigY+(t.clientY-panStartY);
+    clampPan();
+    applyZoom(false);
+  }else if(gesture==='swipe' && e.touches.length===1){
+    const t=e.touches[0];
+    if(Math.abs(t.clientX-tStartX)>10||Math.abs(t.clientY-tStartY)>10)tMoved=true;
+  }
+},{passive:false});
+
 bookwrap.addEventListener('touchend',e=>{
+  // fin de pinch: si quedó casi en 1, resetear suave
+  if(gesture==='pinch'){
+    if(zoom<=1.04){ resetZoom(true); }
+    else{ clampPan(); applyZoom(true); }
+    gesture=e.touches.length===1?'pan':null;
+    return;
+  }
+  if(gesture==='pan'){
+    clampPan();applyZoom(true);
+    gesture=null;
+    return;
+  }
+  // gesture swipe / tap (solo sin zoom)
+  if(zoom>1.02){ gesture=null; return; }
   const t=e.changedTouches[0];
   const dx=t.clientX-tStartX, dy=t.clientY-tStartY, dt=Date.now()-tStartT;
   const swipeThreshold=Math.max(50,window.innerWidth*0.12);
-  // swipe horizontal claro (no vertical) => pasar página
+  // swipe horizontal claro => pasar página
   if(Math.abs(dx)>swipeThreshold && Math.abs(dx)>Math.abs(dy)*1.4){
     turnPage(dx<0?1:-1);
-    return;
+    gesture=null;return;
   }
-  // tap simple (sin desplazamiento) => en inmersivo, alternar UI
   if(!tMoved && dt<300){
+    // doble-tap => zoom rápido a 2.4x centrado en el toque
+    const now=Date.now();
+    if(now-lastTapT<300){
+      const rect=sheet.getBoundingClientRect();
+      const cx=t.clientX-(rect.left+rect.width/2);
+      const cy=t.clientY-(rect.top+rect.height/2);
+      zoom=2.4;
+      panX=-cx*(zoom-1);
+      panY=-cy*(zoom-1);
+      clampPan();applyZoom(true);
+      lastTapT=0;
+      gesture=null;return;
+    }
+    lastTapT=now;
+    // tap simple => alternar UI en inmersivo
     if(isImmersive()){
       if(document.body.classList.contains('show-ui')) document.body.classList.remove('show-ui');
       else showUI();
     }
   }
-},{passive:true});
+  gesture=null;
+},{passive:false});
 
 // en escritorio, mover el mouse muestra la UI en modo inmersivo
 let mouseT;
@@ -780,7 +873,7 @@ document.addEventListener('mousemove',()=>{
   clearTimeout(mouseT);mouseT=setTimeout(()=>{ if(isImmersive())document.body.classList.remove('show-ui'); },2600);
 });
 
-let rsT;window.addEventListener('resize',()=>{if(!pdfDoc)return;clearTimeout(rsT);rsT=setTimeout(()=>{cache.clear();showPage(current);},180);});
+let rsT;window.addEventListener('resize',()=>{if(!pdfDoc)return;clearTimeout(rsT);rsT=setTimeout(()=>{resetZoom(false);cache.clear();showPage(current);},180);});
 loadCatalog();
 </script>
 
