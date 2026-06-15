@@ -148,6 +148,25 @@
     display:none;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.3)}
   body.immersive.show-ui .exit-immersive{display:flex}
 
+  /* ---------- Botones flotantes laterales (móvil + inmersivo) ---------- */
+  .edge-nav{position:fixed;top:50%;transform:translateY(-50%);z-index:44;
+    width:46px;height:46px;border-radius:50%;border:none;
+    background:rgba(255,255,255,.18);color:#fff;backdrop-filter:blur(6px);
+    display:none;align-items:center;justify-content:center;font-size:24px;line-height:1;
+    box-shadow:0 2px 12px rgba(0,0,0,.25);
+    opacity:0;transition:opacity .4s ease;pointer-events:none}
+  .edge-nav.prev{left:12px}
+  .edge-nav.next{right:12px}
+  .edge-nav svg{width:22px;height:22px}
+  /* visibles solo en móvil + inmersivo */
+  body.immersive .edge-nav{display:flex}
+  /* parpadeo inicial al entrar a inmersivo (2 pulsos) y luego se ocultan */
+  body.immersive .edge-nav.hint-blink{animation:edgeBlink 1.1s ease 2;pointer-events:auto}
+  @keyframes edgeBlink{0%,100%{opacity:0}50%{opacity:.85}}
+  /* al mostrar la UI (tap/inactividad) reaparecen y son tocables */
+  body.immersive.show-ui .edge-nav{opacity:.7;pointer-events:auto}
+  .edge-nav:active{background:rgba(46,154,65,.55);opacity:1!important}
+
   /* ---------- Móvil ---------- */
   @media (max-width:760px){
     .brand .sub{display:none}
@@ -173,6 +192,8 @@
     .book-spine{width:calc(50% - 7px);max-width:150px;height:150px}
     .shelf h2{justify-content:flex-start}
   }
+  /* en escritorio nunca se muestran los botones flotantes */
+  @media (min-width:761px){ .edge-nav{display:none!important} }
   @media (max-width:380px){
     .book-spine{width:100%;max-width:none;height:138px;flex-direction:row;align-items:center;padding:14px 18px}
     .book-spine::before{inset:8px}
@@ -225,6 +246,8 @@
   <button class="icon-btn" id="btnFs" title="Pantalla completa">⤢</button>
 </div>
 <button class="exit-immersive" id="exitImmersive" title="Salir">✕</button>
+<button class="edge-nav prev" id="edgePrev" aria-label="Anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+<button class="edge-nav next" id="edgeNext" aria-label="Siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
 <div class="toast" id="toast"></div>
 
 <!-- Overlay: un tap para entrar a pantalla completa (deep link) -->
@@ -634,8 +657,18 @@ function enterImmersive(){
   }
   refreshFsBtn();
   if(pdfDoc){cache.clear();showPage(current);}
+  // parpadeo inicial de los botones laterales (solo móvil; CSS ya los oculta en desktop)
+  blinkEdgeNav();
   // ocultar la UI tras un momento para inmersión total
   scheduleHideUI();
+}
+function blinkEdgeNav(){
+  ['edgePrev','edgeNext'].forEach(id=>{
+    const el=$('#'+id);
+    el.classList.remove('hint-blink');
+    void el.offsetWidth;          // reiniciar animación
+    el.classList.add('hint-blink');
+  });
 }
 function exitImmersive(){
   document.body.classList.remove('immersive','show-ui');
@@ -697,6 +730,8 @@ $('#first').addEventListener('click',()=>goTo(1));
 $('#last').addEventListener('click',()=>goTo(total));
 $('#turnNext').addEventListener('click',()=>turnPage(1));
 $('#turnPrev').addEventListener('click',()=>turnPage(-1));
+$('#edgeNext').addEventListener('click',()=>{turnPage(1);showUI();});
+$('#edgePrev').addEventListener('click',()=>{turnPage(-1);showUI();});
 slider.addEventListener('input',()=>goTo(parseInt(slider.value)));
 pageInput.addEventListener('change',()=>goTo(parseInt(pageInput.value)||1));
 document.addEventListener('keydown',e=>{
