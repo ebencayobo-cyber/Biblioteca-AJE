@@ -84,6 +84,14 @@
   .sheet canvas{display:block}
   .sheet .gutter{position:absolute;top:0;left:0;height:100%;width:44px;background:linear-gradient(90deg, rgba(21,92,39,.14), rgba(21,92,39,0));pointer-events:none;z-index:3}
   .sheet .vignette{position:absolute;inset:0;pointer-events:none;z-index:2;box-shadow:inset 0 0 100px rgba(46,154,65,.05);background:radial-gradient(120% 130% at 100% 50%, rgba(46,154,65,.04), transparent 55%)}
+  /* Capa de anotaciones: enlaces clickeables del PDF, alineada sobre el canvas.
+     El contenedor no captura toques (deja pasar el swipe); solo los <a> reales sí. */
+  .annot-layer{position:absolute;top:0;left:0;transform-origin:0 0;z-index:15;pointer-events:none;overflow:hidden}
+  .annot-layer section{position:absolute;pointer-events:auto}
+  .annot-layer a{display:block;width:100%;height:100%;
+    /* resaltado sutil para que el usuario vea que es clickeable */
+    background:rgba(46,154,65,.10);border-radius:2px;transition:background .15s}
+  .annot-layer a:hover{background:rgba(46,154,65,.22)}
   .flip{position:absolute;top:0;z-index:20;transform-style:preserve-3d;pointer-events:none;will-change:transform}
   .flip .face{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--paper)}
   .flip .face canvas{position:absolute;top:0;display:block}
@@ -229,6 +237,7 @@
     <div class="bookwrap" id="bookwrap">
       <div class="sheet" id="sheet">
         <canvas id="pageCanvas"></canvas>
+        <div class="annot-layer" id="annotLayer"></div>
         <div class="gutter"></div><div class="vignette"></div>
         <div class="turn prev" id="turnPrev"><span class="hint">‹</span></div>
         <div class="turn next" id="turnNext"><span class="hint">›</span></div>
@@ -316,6 +325,7 @@ function clampPan(){
 const cache=new Map(),dimCache=new Map(),MAX_CACHE=10;
 const intake=$('#intake'),reader=$('#reader'),controls=$('#controls');
 const sheet=$('#sheet'),pageCanvas=$('#pageCanvas'),bookwrap=$('#bookwrap');
+const annotLayer=$('#annotLayer');
 const loading=$('#loading'),loadingTxt=$('#loadingTxt');
 const pageInput=$('#pageInput'),pageTotal=$('#pageTotal'),slider=$('#slider');
 let toastT;const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600);};
@@ -368,6 +378,55 @@ function paintSheet(canvas,w,h){
   pageCanvas.style.width=w+'px';pageCanvas.style.height=h+'px';
   ctx.drawImage(canvas,0,0);
 }
+
+/* Dibuja la capa de enlaces clickeables sobre el canvas, alineada con la página.
+   Soporta enlaces externos (URL) e internos (saltar a otra página del PDF). */
+async function renderAnnotations(num,w,h){
+  annotLayer.innerHTML='';
+  annotLayer.style.width=w+'px';annotLayer.style.height=h+'px';
+  if(!pdfDoc) return;
+  let page, annots;
+  try{
+    page=await pdfDoc.getPage(num);
+    annots=await page.getAnnotations({intent:'display'});
+  }catch(e){ return; }
+  if(!annots||!annots.length) return;
+  const vp=page.getViewport({scale:w/page.getViewport({scale:1}).width});
+  for(const a of annots){
+    if(a.subtype!=='Link') continue;
+    if(!a.url && a.dest==null && a.action==null) continue;
+    // rect en coords del viewport (pdf.js da [x1,y1,x2,y2] en espacio PDF)
+    const r=vp.convertToViewportRectangle(a.rect);
+    const x=Math.min(r[0],r[2]), y=Math.min(r[1],r[3]);
+    const rw=Math.abs(r[2]-r[0]), rh=Math.abs(r[3]-r[1]);
+    const sec=document.createElement('section');
+    sec.style.left=x+'px';sec.style.top=y+'px';
+    sec.style.width=rw+'px';sec.style.height=rh+'px';
+    const link=document.createElement('a');
+    if(a.url){
+      // enlace externo
+      link.href=a.url;
+      link.target='_blank';
+      link.rel='noopener noreferrer';
+    }else{
+      // enlace interno: saltar a la página destino
+      link.href='#';
+      link.addEventListener('click',async ev=>{
+        ev.preventDefault();
+        try{
+          let dest=a.dest;
+          if(typeof dest==='string') dest=await pdfDoc.getDestination(dest);
+          if(Array.isArray(dest)&&dest[0]){
+            const idx=await pdfDoc.getPageIndex(dest[0]);
+            goTo(idx+1);
+          }
+        }catch(e){}
+      });
+    }
+    sec.appendChild(link);
+    annotLayer.appendChild(sec);
+  }
+}
 async function showPage(num){
   const token=++renderToken;
   resetZoom(false);
@@ -375,6 +434,7 @@ async function showPage(num){
   const canvas=await getCanvas(num,w,h);
   if(token!==renderToken)return;
   paintSheet(canvas,w,h);
+  renderAnnotations(num,w,h);
   current=num;syncControls();prefetch(num);
 }
 async function prefetch(num){
@@ -400,6 +460,7 @@ async function turnPage(dir){
   if(target<1||target>total)return;
   if(zoom>1.02) resetZoom(true);   // si estaba con zoom, volver a 1x antes de pasar
   animating=true;
+  annotLayer.innerHTML='';          // ocultar links durante el giro
 
   const reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
   const cur=await pageDims(current),tgt=await pageDims(target);
@@ -407,7 +468,7 @@ async function turnPage(dir){
   const curCanvas=await getCanvas(current,cf.w,cf.h);
   const tgtCanvas=await getCanvas(target,tf.w,tf.h);
 
-  if(reduce){paintSheet(tgtCanvas,tf.w,tf.h);current=target;syncControls();prefetch(target);animating=false;return;}
+  if(reduce){paintSheet(tgtCanvas,tf.w,tf.h);current=target;renderAnnotations(target,tf.w,tf.h);syncControls();prefetch(target);animating=false;return;}
 
   // mantener la página ACTUAL abajo (todavía no la destino)
   paintSheet(curCanvas,cf.w,cf.h);
@@ -496,7 +557,9 @@ async function turnPage(dir){
   // asegurar estado final
   if(!revealed)paintSheet(tgtCanvas,tf.w,tf.h);
   flip.remove();
-  current=target;syncControls();prefetch(target);
+  current=target;
+  renderAnnotations(target,tf.w,tf.h);   // links de la nueva página
+  syncControls();prefetch(target);
   animating=false;
 }
 
