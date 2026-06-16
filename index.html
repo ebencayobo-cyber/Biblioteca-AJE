@@ -580,6 +580,20 @@ const INDEX_URL='libros/index.json';
 const LIBROS_DIR='libros/';
 let catalogo=[];
 
+/* Detección de dispositivo: decide qué carpeta usar.
+   Combina user-agent táctil + ancho de pantalla para mayor fiabilidad. */
+function isMobileDevice(){
+  const ua=/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent);
+  const touch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+  const narrow=window.matchMedia('(max-width:760px)').matches;
+  // móvil si el UA lo indica, o si es pantalla angosta con táctil
+  return ua || (touch && narrow);
+}
+// carpeta preferida y carpeta de respaldo (fallback)
+function folderOrder(){
+  return isMobileDevice() ? ['Movil','Escritorio'] : ['Escritorio','Movil'];
+}
+
 async function loadPDF(data){
   loading.classList.remove('hidden');loadingTxt.textContent='Abriendo';
   // asegurar que pdf.js esté cargado
@@ -599,11 +613,32 @@ async function loadPDF(data){
   finally{loading.classList.add('hidden');}
 }
 
-/* Abre un libro: primero busca en caché (IndexedDB); si no está, lo descarga
-   del repo y lo guarda en caché para futuras aperturas instantáneas. */
+/* Descarga un PDF probando la carpeta del dispositivo y, si no existe, la otra.
+   Devuelve {buf, folder} o lanza error si no está en ninguna. */
+async function fetchBook(archivo){
+  const order=folderOrder();
+  let lastErr=null;
+  for(const folder of order){
+    try{
+      const url=LIBROS_DIR+folder+'/'+encodeURIComponent(archivo);
+      const resp=await fetch(url);
+      if(resp.ok){
+        const buf=await resp.arrayBuffer();
+        return {buf, folder};
+      }
+      lastErr=new Error('HTTP '+resp.status);
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr||new Error('No encontrado');
+}
+
+/* Abre un libro: primero busca en caché (IndexedDB, por dispositivo); si no está,
+   lo descarga del repo (carpeta correcta con fallback) y lo cachea. */
 async function openBook(item, fromURL){
-  const id='repo_'+item.archivo;
-  // actualizar la URL para que sea copiable/compartible (sin recargar)
+  // la caché distingue por carpeta preferida (móvil vs escritorio tienen versiones distintas)
+  const pref=folderOrder()[0];
+  const id='repo_'+pref+'_'+item.archivo;
+  // actualizar la URL para que sea copiable/compartible (sin -vertical/-horizontal)
   if(!fromURL){
     try{
       const u=new URL(location.href);
@@ -619,16 +654,14 @@ async function openBook(item, fromURL){
     await loadPDF(cached.data);
     return;
   }
-  // 2) descargar del repo
+  // 2) descargar del repo (carpeta del dispositivo, con fallback a la otra)
   loading.classList.remove('hidden');loadingTxt.textContent='Descargando';
   try{
-    const url=LIBROS_DIR+encodeURIComponent(item.archivo);
-    const resp=await fetch(url);
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    const buf=await resp.arrayBuffer();
-    // guardar en caché
+    const {buf, folder}=await fetchBook(item.archivo);
+    // cachear con el id de la carpeta efectivamente usada
+    const cacheId='repo_'+folder+'_'+item.archivo;
     try{
-      await dbPut({id, archivo:item.archivo, name:item.titulo||item.archivo,
+      await dbPut({id:cacheId, archivo:item.archivo, folder, name:item.titulo||item.archivo,
                    size:buf.byteLength, added:Date.now(), data:buf});
     }catch(e){ console.warn('No se pudo cachear:',e); }
     await loadPDF(buf);
