@@ -4,7 +4,12 @@
     {
       "titulo": "LiquidAJE Manual de Usuario",
       "archivo": "LiquidAJE-Vertical.pdf",
-      "descripcion": "Manual de Usuario del agente LiquidAJE"
+      "descripcion": "Guia de uso del agente LiquidAJE"
+    },
+    {
+      "titulo": "Guia para generar Tickets de Soporte",
+      "archivo": "Generar-Ticket.pdf",
+      "descripcion": "6 Pasos para generar un ticket de soporte en el sistema de AJE"
     }
 ]
 }
