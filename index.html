@@ -212,7 +212,6 @@
     <div class="txt"><span class="name">Biblioteca AJE</span><span class="sub">Lector de documentos</span></div>
   </div>
   <div class="spacer"></div>
-  <button class="bar-btn" id="btnLibrary" style="display:none">Biblioteca</button>
 </header>
 <div class="stage">
   <section class="intake" id="intake">
@@ -532,7 +531,6 @@ async function loadPDF(data){
     pdfDoc=await pdfjsLib.getDocument({data:data.slice(0)}).promise;
     total=pdfDoc.numPages;current=1;
     intake.style.display='none';reader.classList.add('on');controls.classList.remove('hidden');
-    $('#btnLibrary').style.display='inline-block';
     await showPage(1);
   }catch(e){console.error(e);toast('No se pudo abrir el PDF');backToLibrary();}
   finally{loading.classList.add('hidden');}
@@ -656,7 +654,7 @@ function backToLibrary(){
   if(isImmersive()||isFs()) exitImmersive();
   hideFsPrompt();
   reader.classList.remove('on');controls.classList.add('hidden');
-  intake.style.display='block';$('#btnLibrary').style.display='none';
+  intake.style.display='block';
   pdfDoc=null;cache.clear();
   // limpiar la URL al volver a la biblioteca
   try{ const u=new URL(location.href); u.searchParams.delete('libro'); u.hash=''; history.replaceState(null,'',u); }catch(e){}
@@ -737,7 +735,6 @@ function hideFsPrompt(){
   $('#fsPrompt').classList.remove('on');
 }
 
-$('#btnLibrary').addEventListener('click',backToLibrary);
 $('#btnFs').addEventListener('click',toggleImmersive);
 $('#exitImmersive').addEventListener('click',exitImmersive);
 document.addEventListener('fullscreenchange',onFsChange);
