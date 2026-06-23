@@ -18,6 +18,12 @@
       "archivo": "Compendio-de-Cultura.pdf",
       "descripcion": "Valores y principios de la empresa",
       "tiny-link": "https://tinyurl.com/Compendio-de-Cultura"
+    },
+    {
+      "titulo": "Momento Gemini",
+      "archivo": "Momento-Gemini.pdf",
+      "descripcion": "Automatizar procesos de negocio con Gemini",
+      "tiny-link": "https://tinyurl.com/Momento-Gemini"
     }
 ]
 }
