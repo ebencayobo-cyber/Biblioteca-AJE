@@ -12,6 +12,12 @@
       "archivo": "Generar-Ticket.pdf",
       "descripcion": "6 Pasos para generar un ticket de soporte en el sistema de AJE",
       "tiny-link": "https://tinyurl.com/Generar-Ticket"
+    },
+    {
+      "titulo": "Compendio de Cultura AJE",
+      "archivo": "Compendio-de-Cultura.pdf",
+      "descripcion": "Valores y principios de la empresa",
+      "tiny-link": "https://tinyurl.com/Compendio-de-Cultura"
     }
 ]
 }
