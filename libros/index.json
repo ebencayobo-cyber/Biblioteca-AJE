@@ -24,6 +24,12 @@
       "archivo": "Momento-Gemini.pdf",
       "descripcion": "Automatizar procesos de negocio con Gemini",
       "tiny-link": "https://tinyurl.com/Momento-Gemini"
+    },
+    {
+      "titulo": "Ciberseguridad",
+      "archivo": "Ciber-Seguridad.pdf",
+      "descripcion": "Induccion para nuevos colaboradores sobre la importancia de la ciberseguridad y la protección de datos",
+      "tiny-link": "https://tinyurl.com/Ciberseguridad"
     }
 ]
 }
