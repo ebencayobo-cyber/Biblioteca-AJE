@@ -30,6 +30,12 @@
       "archivo": "Ciber-Seguridad.pdf",
       "descripcion": "Induccion para nuevos colaboradores sobre la importancia de la ciberseguridad y la protección de datos",
       "tiny-link": "https://tinyurl.com/Ciberseguridad"
+    },
+    {
+      "titulo": "Guia para activar la verificacion en dos pasos",
+      "archivo": "Verificacion-2pasos.pdf",
+      "descripcion": "Paso a paso para generar la verificación en dos pasos en las cuentas de correo corporativo",
+      "tiny-link": "https://tinyurl.com/Verificacion-2pasos"
     }
 ]
 }
