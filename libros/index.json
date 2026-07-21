@@ -36,6 +36,12 @@
       "archivo": "Verificacion-2pasos.pdf",
       "descripcion": "Paso a paso para generar la verificación en dos pasos en las cuentas de correo corporativo",
       "tiny-link": "https://tinyurl.com/Verificacion-2pasos"
+    },
+    {
+      "titulo": "link de rebe",
+      "archivo": "Manual-de-Usuario.pdf",
+      "descripcion": "Manual de usuario del sistema de AJE",  
+      "tiny-link": "https://l.ead.me/ajebolivia"
     }
 ]
 }
